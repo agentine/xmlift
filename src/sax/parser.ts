@@ -18,6 +18,7 @@ export interface SaxTag {
   name: string;
   attributes: Record<string, string>;
   ns?: ResolvedName;
+  attributeNS?: Record<string, ResolvedName>;
 }
 
 export interface SaxProcessingInstruction {
@@ -45,6 +46,7 @@ export class SaxParser extends EventEmitter {
   private nsContext: NamespaceContext;
   private depth = 0;
   private firstFeed = true;
+  private tagStack: string[] = []; // tag-matching stack for strict mode
 
   // Track current tag being built (accumulate attributes)
   private currentTag: SaxTag | null = null;
@@ -93,12 +95,28 @@ export class SaxParser extends EventEmitter {
     this.emit("end");
   }
 
+  /** Reset parser state to allow reuse. */
+  reset(): void {
+    this.depth = 0;
+    this.firstFeed = true;
+    this.currentTag = null;
+    this.currentTagName = "";
+    this.tagStack = [];
+    this.nsContext = new NamespaceContext();
+    this.tokenizer = new Tokenizer((token) => {
+      try {
+        this.handleToken(token.type, token.value, token.name);
+      } catch (err) {
+        this.handleError(err as Error);
+      }
+    }, { strict: this.strict });
+  }
+
   private handleError(err: Error): void {
     if (this.strict) {
       this.emit("error", err);
-    } else {
-      this.emit("error", err);
     }
+    // In lenient mode, errors are silently suppressed to continue parsing.
   }
 
   private expandText(text: string): string {
@@ -119,38 +137,55 @@ export class SaxParser extends EventEmitter {
       case TokenType.Attribute:
         if (this.currentTag && name) {
           const attrValue = this.expandText(value);
-
-          // Check for xmlns declarations
-          if (this.xmlnsEnabled) {
-            const nsPrefix = NamespaceContext.parseXmlnsAttr(name);
-            if (nsPrefix !== null) {
-              this.nsContext.addNamespace(nsPrefix, attrValue);
-            }
-          }
-
+          // xmlns declarations are collected on the tag and registered
+          // in flushCurrentTag AFTER push(), avoiding scope pollution.
           this.currentTag.attributes[name] = attrValue;
         }
         break;
 
-      case TokenType.SelfCloseTag:
+      case TokenType.SelfCloseTag: {
         this.flushCurrentTag();
-        // If currentTag was already flushed by OpenTag handler,
-        // we need to emit close for the self-closing tag
-        this.emit("closetag", name ?? value);
+        const selfName = name ?? value;
+        // Pop from tag stack (was pushed in flushCurrentTag).
+        if (this.tagStack.length > 0) {
+          this.tagStack.pop();
+        }
+        this.emit("closetag", selfName);
         if (this.xmlnsEnabled) {
           this.nsContext.pop();
         }
-        this.depth--;
+        // Don't go negative — self-close was incremented in flushCurrentTag.
+        if (this.depth > 0) this.depth--;
         break;
+      }
 
       case TokenType.CloseTag: {
         this.flushCurrentTag();
         const closeName = name ?? value;
+
+        // Tag-matching validation in strict mode.
+        if (this.strict && this.tagStack.length > 0) {
+          const expected = this.tagStack[this.tagStack.length - 1];
+          if (expected !== closeName) {
+            throw new Error(
+              `Mismatched close tag: expected </${expected}>, got </${closeName}>`
+            );
+          }
+          this.tagStack.pop();
+        } else if (!this.strict && this.tagStack.length > 0) {
+          // Lenient: pop the matching tag if found in the stack.
+          const idx = this.tagStack.lastIndexOf(closeName);
+          if (idx >= 0) {
+            this.tagStack.splice(idx);
+          }
+        }
+
         this.emit("closetag", closeName);
         if (this.xmlnsEnabled) {
           this.nsContext.pop();
         }
-        this.depth--;
+        // Guard against negative depth from unmatched close tags.
+        if (this.depth > 0) this.depth--;
         break;
       }
 
@@ -201,9 +236,13 @@ export class SaxParser extends EventEmitter {
       );
     }
 
+    // Push tag name onto stack for tag-matching validation.
+    this.tagStack.push(tag.name);
+
     if (this.xmlnsEnabled) {
+      // Push a new namespace scope FIRST, then register xmlns declarations
+      // from this element's attributes. This prevents polluting the parent scope.
       this.nsContext.push();
-      // Re-register xmlns attrs on the new scope
       for (const [attrName, attrValue] of Object.entries(tag.attributes)) {
         const nsPrefix = NamespaceContext.parseXmlnsAttr(attrName);
         if (nsPrefix !== null) {
@@ -212,9 +251,10 @@ export class SaxParser extends EventEmitter {
       }
       tag.ns = getElementNS(tag.name, this.nsContext);
 
-      // Resolve attribute namespaces — attach ns info per attribute
+      // Resolve attribute namespaces and store the result.
+      tag.attributeNS = Object.create(null) as Record<string, ResolvedName>;
       for (const attrName of Object.keys(tag.attributes)) {
-        getAttrNS(attrName, this.nsContext);
+        tag.attributeNS[attrName] = getAttrNS(attrName, this.nsContext);
       }
     }
 

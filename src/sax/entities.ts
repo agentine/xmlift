@@ -124,8 +124,17 @@ export function expandEntities(
 
       const resolved = resolveEntity(ref, options);
 
-      // If the resolved value contains entity references, expand recursively
-      if (resolved.includes("&") && resolved !== `&${ref};`) {
+      // Only recursively expand custom entity values (they may contain
+      // further entity references). Predefined and numeric refs produce
+      // literal characters and must NOT be re-expanded — otherwise &amp;
+      // resolving to "&" would trigger infinite recursion.
+      const isPredefinedOrNumeric =
+        ref in PREDEFINED || ref.startsWith("#");
+      if (
+        !isPredefinedOrNumeric &&
+        resolved.includes("&") &&
+        resolved !== `&${ref};`
+      ) {
         result += expand(resolved, depth + 1);
       } else {
         result += resolved;

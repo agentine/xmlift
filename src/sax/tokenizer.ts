@@ -78,6 +78,7 @@ export class Tokenizer {
   private commentBuffer = "";
   private cdataBuffer = "";
   private doctypeBuffer = "";
+  private doctypeBracketDepth = 0;
   private bangBuffer = "";
 
   private line = 1;
@@ -494,6 +495,7 @@ export class Tokenizer {
         if (target.toUpperCase().startsWith(this.bangBuffer.toUpperCase())) {
           if (this.bangBuffer.length === target.length) {
             this.doctypeBuffer = "";
+            this.doctypeBracketDepth = 0;
             this.state = State.DOCTYPE;
           }
         } else {
@@ -504,8 +506,15 @@ export class Tokenizer {
         break;
 
       case State.DOCTYPE: {
-        // Read until matching '>' (handle nested brackets)
-        if (c === ">") {
+        // Track nested brackets so internal DTD subsets like
+        // <!DOCTYPE root [ <!ELEMENT ...> ]> are handled correctly.
+        if (c === "[") {
+          this.doctypeBracketDepth++;
+          this.doctypeBuffer += c;
+        } else if (c === "]") {
+          this.doctypeBracketDepth--;
+          this.doctypeBuffer += c;
+        } else if (c === ">" && this.doctypeBracketDepth <= 0) {
           this.emit(TokenType.DocType, this.doctypeBuffer.trim());
           this.state = State.TEXT;
         } else {
