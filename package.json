@@ -27,6 +27,7 @@
     "clean": "rm -rf dist"
   },
   "devDependencies": {
+    "@types/node": "^25.4.0",
     "typescript": "^5.4.0"
   }
 }
