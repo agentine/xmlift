@@ -127,8 +127,12 @@ export class Tokenizer {
   }
 
   feed(chunk: string): void {
-    for (let i = 0; i < chunk.length; i++) {
-      const c = chunk[i];
+    // Use index-based iteration with codePointAt to correctly handle
+    // supplementary-plane characters (surrogate pairs in UTF-16).
+    for (let i = 0; i < chunk.length; ) {
+      const cp = chunk.codePointAt(i)!;
+      const charLen = cp > 0xffff ? 2 : 1;
+      const c = chunk.slice(i, i + charLen);
       this.processChar(c);
       if (c === "\n") {
         this.line++;
@@ -136,7 +140,8 @@ export class Tokenizer {
       } else {
         this.column++;
       }
-      this.offset++;
+      this.offset += charLen;
+      i += charLen;
     }
   }
 
@@ -559,7 +564,7 @@ function isWhitespace(c: string): boolean {
 }
 
 function isNameStartChar(c: string): boolean {
-  const code = c.charCodeAt(0);
+  const code = c.codePointAt(0)!;
   return (
     (code >= 0x41 && code <= 0x5a) || // A-Z
     (code >= 0x61 && code <= 0x7a) || // a-z
@@ -575,13 +580,14 @@ function isNameStartChar(c: string): boolean {
     (code >= 0x2c00 && code <= 0x2fef) ||
     (code >= 0x3001 && code <= 0xd7ff) ||
     (code >= 0xf900 && code <= 0xfdcf) ||
-    (code >= 0xfdf0 && code <= 0xfffd)
+    (code >= 0xfdf0 && code <= 0xfffd) ||
+    (code >= 0x10000 && code <= 0xeffff) // supplementary planes
   );
 }
 
 function isNameChar(c: string): boolean {
   if (isNameStartChar(c)) return true;
-  const code = c.charCodeAt(0);
+  const code = c.codePointAt(0)!;
   return (
     c === "-" ||
     c === "." ||

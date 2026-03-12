@@ -144,18 +144,21 @@ export class SaxParser extends EventEmitter {
         break;
 
       case TokenType.SelfCloseTag: {
+        // Only undo the depth/stack operations if flushCurrentTag actually
+        // flushed a tag (guards against unexpected token sequences).
+        const hadTag = this.currentTag !== null;
         this.flushCurrentTag();
         const selfName = name ?? value;
-        // Pop from tag stack (was pushed in flushCurrentTag).
-        if (this.tagStack.length > 0) {
-          this.tagStack.pop();
+        if (hadTag) {
+          if (this.tagStack.length > 0) {
+            this.tagStack.pop();
+          }
+          this.emit("closetag", selfName);
+          if (this.xmlnsEnabled) {
+            this.nsContext.pop();
+          }
+          if (this.depth > 0) this.depth--;
         }
-        this.emit("closetag", selfName);
-        if (this.xmlnsEnabled) {
-          this.nsContext.pop();
-        }
-        // Don't go negative — self-close was incremented in flushCurrentTag.
-        if (this.depth > 0) this.depth--;
         break;
       }
 

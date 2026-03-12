@@ -137,4 +137,31 @@ describe("Tokenizer", () => {
     expect(attr.name).toBe("x");
     expect(attr.value).toBe("hello");
   });
+
+  it("handles supplementary-plane characters in tag names", () => {
+    // U+10000 (Linear B Syllable B008 A) is a valid NameStartChar
+    const name = "\u{10000}";
+    const tokens = tokenize(`<${name}/>`);
+    expect(tokens[0].type).toBe(TokenType.OpenTag);
+    expect(tokens[0].name).toBe(name);
+  });
+
+  it("tracks position correctly across newlines", () => {
+    const tokens = tokenize("<a>\ntext\n<b/>\n</a>");
+    // <a> at line 1, col 1
+    expect(tokens[0].position).toEqual({ line: 1, column: 1, offset: 0 });
+    // text starts with \n at end of line 1
+    const text = tokens.find((t) => t.type === TokenType.Text)!;
+    expect(text.position.line).toBe(1);
+    // <b/> at line 3, col 1
+    const openB = tokens.find(
+      (t) => t.type === TokenType.OpenTag && t.name === "b"
+    )!;
+    expect(openB.position).toEqual({ line: 3, column: 1, offset: 9 });
+    // </a> at line 4, col 1
+    const closeA = tokens.find(
+      (t) => t.type === TokenType.CloseTag && t.name === "a"
+    )!;
+    expect(closeA.position).toEqual({ line: 4, column: 1, offset: 14 });
+  });
 });
