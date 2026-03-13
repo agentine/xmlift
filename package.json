@@ -1,6 +1,6 @@
 {
   "name": "@agentine/xmlift",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Modern, zero-dependency, TypeScript-first drop-in replacement for xml2js with security-by-default",
   "keywords": [
     "xml",
