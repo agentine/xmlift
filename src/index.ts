@@ -114,3 +114,7 @@ export const defaults = {
   "0.1": DEFAULTS_0_1,
   "0.2": DEFAULTS_0_2,
 };
+
+// Phase 3 — xml2js-compatible Builder
+export { Builder, type BuilderOptions, type XmlDeclaration, type RenderOptions } from "./builder/builder.js";
+export { escapeXML, wrapCDATA } from "./builder/escape.js";
