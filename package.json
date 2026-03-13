@@ -1,7 +1,18 @@
 {
   "name": "@agentine/xmlift",
   "version": "0.1.0",
-  "description": "Modern, zero-dependency, TypeScript-first replacement for xml2js",
+  "description": "Modern, zero-dependency, TypeScript-first drop-in replacement for xml2js with security-by-default",
+  "keywords": [
+    "xml",
+    "xml2js",
+    "parser",
+    "sax",
+    "xml-parser",
+    "builder",
+    "typescript",
+    "zero-dependency",
+    "esm"
+  ],
   "license": "MIT",
   "type": "module",
   "engines": {
