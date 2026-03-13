@@ -40,3 +40,10 @@ export {
   type Processor,
   type Validator,
 } from "./parser/options.js";
+export {
+  normalize,
+  firstCharLowerCase,
+  stripPrefix,
+  parseNumbers,
+  parseBooleans,
+} from "./parser/processors.js";

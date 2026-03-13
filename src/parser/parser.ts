@@ -253,6 +253,18 @@ export class Parser extends EventEmitter {
     if (this.stack.length === 0) return;
     const frame = this.stack[this.stack.length - 1];
     frame.text += text;
+
+    // When charsAsChildren + explicitChildren, add text nodes to the
+    // ordered children array as they arrive, preserving interleave order.
+    if (this.opts.charsAsChildren && this.opts.explicitChildren) {
+      const processedText = this.processText(text);
+      if (processedText.length > 0 || this.opts.includeWhiteChars) {
+        const childArr = (frame.obj[this.opts.childkey] ??= []) as unknown[];
+        const textNode = this.createObj();
+        textNode[this.opts.charkey] = processedText;
+        childArr.push(textNode);
+      }
+    }
   }
 
   private onCloseTag(_name: string): void {
@@ -265,27 +277,33 @@ export class Parser extends EventEmitter {
 
     // Determine the element value.
     const hasChildren = Object.keys(obj).some(
-      (k) => k !== this.opts.attrkey && k !== this.opts.xmlnskey,
+      (k) =>
+        k !== this.opts.attrkey &&
+        k !== this.opts.xmlnskey &&
+        k !== this.opts.childkey,
     );
+    const hasChildArr =
+      this.opts.explicitChildren && this.opts.childkey in obj;
     const hasAttrs = this.opts.attrkey in obj;
     const hasText = text.length > 0;
 
-    if (!hasChildren && !hasAttrs && !hasText) {
+    if (!hasChildren && !hasChildArr && !hasAttrs && !hasText) {
       // Empty element — use emptyTag value.
       this.assignToParent(tagName, this.opts.emptyTag);
       return;
     }
 
     // Place text content.
-    if (hasText) {
+    if (hasText && !(this.opts.charsAsChildren && this.opts.explicitChildren)) {
       if (
         this.opts.explicitCharkey ||
         hasChildren ||
+        hasChildArr ||
         hasAttrs
       ) {
         obj[this.opts.charkey] = text;
       } else {
-        // Simple text-only element — assign text directly unless explicitArray.
+        // Simple text-only element — assign text directly.
         this.assignToParent(tagName, text);
         return;
       }
@@ -293,6 +311,32 @@ export class Parser extends EventEmitter {
 
     // Assign this element object to its parent.
     this.assignToParent(tagName, obj);
+  }
+
+  /** Add child by name on the parent (used alongside explicitChildren). */
+  private addChildByName(
+    parent: Record<string, unknown>,
+    tagName: string,
+    value: unknown,
+  ): void {
+    if (this.opts.explicitArray) {
+      if (tagName in parent) {
+        (parent[tagName] as unknown[]).push(value);
+      } else {
+        parent[tagName] = [value];
+      }
+    } else {
+      if (tagName in parent) {
+        const existing = parent[tagName];
+        if (Array.isArray(existing)) {
+          existing.push(value);
+        } else {
+          parent[tagName] = [existing, value];
+        }
+      } else {
+        parent[tagName] = value;
+      }
+    }
   }
 
   /** Add a child value to the parent frame, or set as result if at root. */
@@ -315,7 +359,25 @@ export class Parser extends EventEmitter {
       // Add to parent object.
       const parent = this.stack[this.stack.length - 1].obj;
 
-      if (this.opts.explicitArray) {
+      if (this.opts.explicitChildren) {
+        // Store child elements in a separate children array.
+        const childArr = (parent[this.opts.childkey] ??= []) as unknown[];
+        if (this.opts.preserveChildrenOrder) {
+          // Wrap each child in {#name: tagName, ...value} for order tracking.
+          const wrapper = this.createObj();
+          wrapper["#name"] = tagName;
+          if (typeof value === "object" && value !== null) {
+            Object.assign(wrapper, value);
+          } else {
+            wrapper[this.opts.charkey] = value;
+          }
+          childArr.push(wrapper);
+        } else {
+          childArr.push(value);
+        }
+        // Also store by tag name on the parent for direct access.
+        this.addChildByName(parent, tagName, value);
+      } else if (this.opts.explicitArray) {
         if (tagName in parent) {
           (parent[tagName] as unknown[]).push(value);
         } else {
