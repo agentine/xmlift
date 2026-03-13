@@ -4,7 +4,7 @@
 
 `@agentine/xmlift` is a drop-in replacement for [xml2js](https://github.com/Leonidas-from-XIV/node-xml2js) — the same exports, same options, same output format — with full TypeScript types, no dependencies, and security improvements baked in by default.
 
-> **Current status:** The SAX parser engine (Phase 1) is complete and published. The xml2js-compatible `Parser`, `Builder`, `parseString`, and `parseStringPromise` layer (Phase 2–3) is under active development. See [Roadmap](#roadmap).
+> **Current status:** All phases complete. `Parser`, `Builder`, `parseString`, `parseStringPromise` — full xml2js API compatibility with 241 tests passing.
 
 ---
 
@@ -591,9 +591,9 @@ In almost all cases you do not need this.
 | Phase | Status | Description |
 |---|---|---|
 | 1: SAX engine | **Complete** | Tokenizer, entity resolution, BOM, namespace support |
-| 2: xml2js-compatible Parser | In progress | `Parser`, `parseString`, `parseStringPromise`, all 25+ options |
-| 3: xml2js-compatible Builder | Planned | `Builder`, `buildObject`, all builder options |
-| 4: Polish & publish | Planned | Tests, CI, npm publish |
+| 2: xml2js-compatible Parser | **Complete** | `Parser`, `parseString`, `parseStringPromise`, all 25+ options |
+| 3: xml2js-compatible Builder | **Complete** | `Builder`, `buildObject`, all builder options |
+| 4: Polish & publish | **Complete** | Security tests, edge-case tests, compatibility tests, CI, npm pack |
 
 ---
 
